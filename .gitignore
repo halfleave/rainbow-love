@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 *.log
 LOVE_dev_backup_*/
+_chk.mjs
+_err.txt
