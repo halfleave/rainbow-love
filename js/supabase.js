@@ -134,3 +134,95 @@ export async function getInviteCode() {
   if (error) throw error;
   return data; // { ok:true, code } | { ok:false, error }
 }
+
+// ============================================================
+// 聊天（第4步）：消息 + Realtime + Presence + Broadcast
+// ============================================================
+
+// 加载历史消息（新→老排序后取最近 limit 条，再反转为老→新）
+export async function loadMessages(coupleId, limit = 50) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('messages')
+    .select('*').eq('couple_id', coupleId)
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data || []).reverse();
+}
+
+// 发送文字 / 图片消息
+export async function sendMessage({ coupleId, body, imageUrl }) {
+  await ensureSession();
+  const uid = await currentUserId();
+  const { error } = await sb.from('messages').insert({
+    couple_id: coupleId,
+    sender_id: uid,
+    kind: imageUrl ? 'image' : 'text',
+    body: body || null,
+    image_url: imageUrl || null
+  });
+  if (error) throw error;
+}
+
+// 批量标记「对方发来的、未读」消息为已读（打开会话时调用）
+export async function markRead(coupleId, myId) {
+  if (!sb) await initSupabase();
+  const { error } = await sb.from('messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('couple_id', coupleId)
+    .neq('sender_id', myId)
+    .is('read_at', null);
+  if (error) throw error;
+}
+
+// 上传聊天图片到 Storage（chat bucket），返回存储路径
+export async function uploadChatImage(coupleId, file) {
+  await ensureSession();
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const safeExt = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(ext) ? ext : 'jpg';
+  const path = `chat/${coupleId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
+  const { error } = await sb.storage.from('chat').upload(path, file, { cacheControl: '3600', upsert: false });
+  if (error) throw error;
+  return path;
+}
+
+// 聊天图片的公开访问 URL（需 chat bucket 为 public，见 sql/配置说明.md）
+export function getChatImageUrl(path) {
+  if (!sb || !path) return '';
+  return sb.storage.from('chat').getPublicUrl(path).data.publicUrl;
+}
+
+// 订阅聊天频道：实时 INSERT / Presence(在线) / Broadcast(输入中)
+// 返回 channel 对象，离开页面时调用 unsubscribeChat(channel) 清理
+export function subscribeChat({ coupleId, myId, onInsert, onPresence, onTyping }) {
+  if (!sb) return null;
+  const channel = sb.channel(`chat:${coupleId}`, {
+    config: { presence: { key: myId }, broadcast: { self: false } }
+  });
+
+  channel
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'messages',
+      filter: `couple_id=eq.${coupleId}`
+    }, (payload) => { onInsert && onInsert(payload.new); })
+    .on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      const others = Object.values(state).flat();
+      const online = others.some((p) => p && p.user_id && p.user_id !== myId);
+      onPresence && onPresence(online);
+    })
+    .on('broadcast', { event: 'typing' }, () => { onTyping && onTyping(); });
+
+  channel.subscribe(async (status) => {
+    if (status === 'SUBSCRIBED') {
+      try { await channel.track({ user_id: myId, online_at: new Date().toISOString() }); } catch (_) {}
+    }
+  });
+  return channel;
+}
+
+// 退订频道（离开聊天页必须调用，防止连接累积）
+export function unsubscribeChat(channel) {
+  if (channel && sb) {
+    try { sb.removeChannel(channel); } catch (_) {}
+  }
+}

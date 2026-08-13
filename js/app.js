@@ -69,6 +69,8 @@ const ctx = {
     }
   },
   isPaired() { return !!this.partner; },
+  // 视图可注册的离开钩子（如聊天页退订频道），route 切换前调用
+  leaveHandler: null,
   // 从云端重载最新身份/配对状态（配对成功后调用）
   async refresh() {
     if (!this.me) return;
@@ -100,10 +102,24 @@ async function route() {
   const mod = ROUTES[path] || home;
   const root = document.getElementById('view');
   syncTabActive();
-  root.classList.toggle('no-tabbar', path === '/pairing' || path === '/onboarding');
+
+  // 离开上一页：先执行其清理钩子（如聊天页退订 Realtime 频道）
+  if (ctx.leaveHandler) {
+    try { ctx.leaveHandler(); } catch (e) { console.warn('leaveHandler 出错', e); }
+    ctx.leaveHandler = null;
+  }
+
+  // 视图容器样式：聊天页全屏独立滚动；二级页隐藏 Tab
+  const cls = ['view'];
+  if (path === '/chat') cls.push('is-chat');
+  if (path === '/pairing' || path === '/onboarding') cls.push('no-tabbar');
+  root.className = cls.join(' ');
+
   root.innerHTML = '';
   try {
     await mod.render(root, ctx);
+    // 视图可注册离开钩子
+    if (typeof mod.cleanup === 'function') ctx.leaveHandler = mod.cleanup;
   } catch (e) {
     console.error(e);
     root.innerHTML = `<div class="placeholder"><div class="big">🌸</div><p>页面出错了：${escapeText(e.message)}</p></div>`;

@@ -252,11 +252,12 @@ end
 $$;
 
 -- 9. Storage buckets（头像、日记图片、聊天图片）
+-- 说明：avatars/diary 设 private（需签名访问），chat 设 public（聊天图片需直链实时显示）
 insert into storage.buckets (id, name, public)
 values
   ('avatars', 'avatars', false),
   ('diary', 'diary', false),
-  ('chat', 'chat', false)
+  ('chat', 'chat', true)
 on conflict (id) do nothing;
 
 -- Storage 权限：已登录用户可读可写这三个 bucket（路径中已包含 couple_id/user_id，实际由应用控制）
