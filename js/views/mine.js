@@ -50,15 +50,50 @@ export async function render(root, ctx) {
       </div>
     </div>
 
-    <div class="placeholder">
-      <div class="big">🛠️</div>
-      <p>纪念日 / 计划 / 任务 / 打卡 / 影视 等<br>将在第 8、9、10 步实现</p>
+    <div class="card">
+      <div class="section-title">我的记录</div>
+      <div class="row-link" id="goAnn">
+        <span class="rl-label">📅 纪念日</span>
+        <span class="chev">›</span>
+      </div>
+      <div class="row-link" id="goPlan">
+        <span class="rl-label">🗺️ 未来计划</span>
+        <span class="chev">›</span>
+      </div>
+      <div class="row-link" id="goTask">
+        <span class="rl-label">📋 日常任务</span>
+        <span class="chev">›</span>
+      </div>
+      <div class="row-link" id="goCheckin">
+        <span class="rl-label">📅 日常打卡</span>
+        <span class="chev">›</span>
+      </div>
     </div>
+
+    <div class="card">
+      <div class="section-title">设置</div>
+      <div class="row-link" id="goSettings">
+        <span class="rl-label">⚙️ 设置</span>
+        <span class="chev">›</span>
+      </div>
+      <div class="row-link" id="goApi">
+        <span class="rl-label">🔑 API 管理</span>
+        <span class="chev">›</span>
+      </div>
+    </div>
+
+    <p class="tip center">数据自动同步到云端，安心记录你们的每一天 💞</p>
   `;
 
   root.querySelector('#edit')?.addEventListener('click', () => ctx.navigate('/onboarding'));
   root.querySelector('#goPair')?.addEventListener('click', () => ctx.navigate('/pairing'));
   root.querySelector('#manage')?.addEventListener('click', () => ctx.navigate('/pairing'));
+  root.querySelector('#goAnn')?.addEventListener('click', () => ctx.navigate('/anniversaries'));
+  root.querySelector('#goPlan')?.addEventListener('click', () => ctx.navigate('/plans'));
+  root.querySelector('#goTask')?.addEventListener('click', () => ctx.navigate('/tasks'));
+  root.querySelector('#goCheckin')?.addEventListener('click', () => ctx.navigate('/checkins'));
+  root.querySelector('#goApi')?.addEventListener('click', () => ctx.navigate('/api-config'));
+  root.querySelector('#goSettings')?.addEventListener('click', () => ctx.navigate('/settings'));
 
   const themeSeg = root.querySelector('#theme');
   themeSeg?.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {

@@ -6,7 +6,7 @@ import {
   loadAnniversaries, loadTodayTasks, loadTodayCheckins,
   loadRecentDiary, loadRecentPhotos, toggleTask, checkIn
 } from '../supabase.js';
-import { nextOccurrence, formatLunar } from '../lunar.js';
+import { nextOccurrence, formatLunar, solarToLunar } from '../lunar.js';
 
 const WORDS = {
   morning: [
@@ -35,12 +35,16 @@ function pickWord() {
   return group[Math.floor(Math.random() * group.length)];
 }
 
-function countdownLabel(targetDateStr) {
-  const t = nextOccurrence(
-    Number(targetDateStr.slice(5, 7)),
-    Number(targetDateStr.slice(8, 10)),
-    new Date()
-  );
+function countdownLabel(ann) {
+  let m, d;
+  if (ann.is_lunar) {
+    const p = ann.date.split('-').map(Number);
+    const l = solarToLunar(new Date(p[0], p[1] - 1, p[2]));
+    m = l.month; d = l.day;
+  } else {
+    m = Number(ann.date.slice(5, 7)); d = Number(ann.date.slice(8, 10));
+  }
+  const t = nextOccurrence(m, d, new Date());
   const n = daysBetween(toISODate(new Date()), toISODate(t));
   if (n === 0) return '就是今天 🎉';
   return `还有 ${n} 天`;
@@ -66,16 +70,7 @@ export async function render(root, ctx) {
     <div id="home-loader" class="placeholder"><div class="big">🌸</div><p>正在加载…</p></div>
   </div>`;
 
-  if (!pair) {
-    const b = root.querySelector('#home-loader');
-    b.outerHTML = `<div class="card"><div class="section-title">邀请伴侣 💞</div>
-      <p class="tip">在「我的 → 配对伴侣」生成邀请码，或输入 TA 的邀请码，即可共享所有回忆。</p>
-      <button class="btn primary block" id="goPair">去配对</button></div>`;
-    root.querySelector('#goPair')?.addEventListener('click', () => ctx.navigate('/pairing'));
-    return;
-  }
-
-  // 并发拉取首页数据
+  // 并发拉取首页数据（个人模式 / 配对模式 通用：除聊天外功能都以自己的数据为中心）
   let ann = [], tasks = [], checks = [], diary = [], photos = [];
   try {
     [ann, tasks, checks, diary, photos] = await Promise.all([
@@ -99,11 +94,11 @@ export async function render(root, ctx) {
     <div class="card ann-card" id="annCard">
       <div class="ann-left">
         <div class="ann-title">${escapeHtml(nextAnn ? nextAnn.title : '还没有纪念日')}</div>
-        <div class="ann-sub">${nextAnn ? countdownLabel(nextAnn.date) : '去「我的」添加一个吧'}</div>
+        <div class="ann-sub">${nextAnn ? countdownLabel(nextAnn) : '去添加一个吧'}</div>
       </div>
       <div class="ann-heart">💞</div>
     </div>
-    ${ann.length > 1 ? `<div class="ann-more">还有 ${ann.length - 1} 个纪念日</div>` : ''}
+    ${ann.length > 1 ? `<div class="ann-more" id="annMore">还有 ${ann.length - 1} 个纪念日 ›</div>` : ''}
 
     <!-- 今日情话 -->
     <div class="card word-card">
@@ -144,12 +139,22 @@ export async function render(root, ctx) {
         </div>` : ''}
       <button class="btn ghost block" id="goMemory" style="margin-top:10px">进入记忆</button>
     </div>
+
+    ${!pair ? `
+    <div class="card invite-nudge">
+      <div class="section-title">邀请 TA 💞</div>
+      <p class="tip">生成邀请码或输入 TA 的邀请码，即可把回忆共享给彼此。现在你看到的是自己的空间。</p>
+      <button class="btn primary block" id="goPair">去配对</button>
+    </div>` : ''}
   `;
 
   root.querySelector('#changeWord')?.addEventListener('click', () => {
     root.querySelector('#word').textContent = pickWord();
   });
   root.querySelector('#goMemory')?.addEventListener('click', () => ctx.navigate('/memory'));
+  root.querySelector('#annCard')?.addEventListener('click', () => ctx.navigate('/anniversaries'));
+  root.querySelector('#annMore')?.addEventListener('click', () => ctx.navigate('/anniversaries'));
+  root.querySelector('#goPair')?.addEventListener('click', () => ctx.navigate('/pairing'));
 
   // 打卡点击
   root.querySelectorAll('.checkin-chip').forEach((chip) => {
@@ -184,9 +189,12 @@ function renderCheckin(type, label, rec) {
 
 function renderTask(t) {
   const who = t.assignee ? `<span class="task-who" style="color:${escapeHtml(t.assignee.color || '#999')}">@${escapeHtml(t.assignee.nickname || 'TA')}</span>` : '';
+  const dl = t.deadline
+    ? (() => { const d = new Date(t.deadline); const p = (n) => String(n).padStart(2, '0'); return `<span class="task-dl">🕒 ${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}</span>`; })()
+    : '';
   return `<div class="task-item" data-id="${t.id}">
     <span class="check">○</span>
     <span class="task-title">${escapeHtml(t.title)}</span>
-    ${who}
+    ${who}${dl}
   </div>`;
 }

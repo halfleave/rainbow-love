@@ -41,11 +41,13 @@ begin
   update tasks         set couple_id = v_target where couple_id = v_mine;
   update checkins      set couple_id = v_target where couple_id = v_mine;
   update diary_entries set couple_id = v_target where couple_id = v_mine;
+  update movie_reviews set couple_id = v_target where couple_id = v_mine;
   update movies        set couple_id = v_target where couple_id = v_mine;
   update messages      set couple_id = v_target where couple_id = v_mine;
 
-  -- 6. 本人移入共享空间；单人空间若已无人则删除
+  -- 6. 本人移入共享空间；单人空间若已无人则删除；标记已配对
   update profiles set couple_id = v_target where id = v_uid;
+  update couples set is_paired = true where id = v_target;
   delete from couples
    where id = v_mine
      and not exists (select 1 from profiles where couple_id = v_mine);

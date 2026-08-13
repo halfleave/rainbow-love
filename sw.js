@@ -1,5 +1,5 @@
 // 彩虹 PWA Service Worker —— 应用壳缓存 + 离线兜底
-const CACHE = 'rainbow-v2';
+const CACHE = 'rainbow-v14';
 const CORE = [
   './',
   './index.html',
@@ -13,7 +13,16 @@ const CORE = [
   './js/views/memory.js',
   './js/views/chat.js',
   './js/views/mine.js',
-  './js/views/pairing.js'
+  './js/views/pairing.js',
+  './js/views/onboarding.js',
+  './js/views/anniversary.js',
+  './js/views/plan.js',
+  './js/views/task.js',
+  './js/views/movie.js',
+  './js/views/movie-search.js',
+  './js/views/checkin.js',
+  './js/views/api-config.js',
+  './js/views/settings.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -36,10 +45,12 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   const isLocal = url.origin === self.location.origin;
 
-  // 本地应用代码（html/js/css）：网络优先，改了文件立即生效；断网再回退缓存（离线可开）
+  // 本地应用代码（html/js/css）：网络优先 + 强制绕过浏览器 HTTP 缓存，
+  // 确保改了文件立即生效（Python 静态服务器不发送 Cache-Control，否则会被磁盘缓存成旧版）；
+  // 断网再回退缓存（离线可开）
   if (isLocal) {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'reload' })
         .then((r) => { cachePut(req, r.clone()); return r; })
         .catch(() => caches.match(req).then((c) => c || caches.match('./index.html')))
     );

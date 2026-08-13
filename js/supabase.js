@@ -241,6 +241,84 @@ export async function loadAnniversaries(coupleId) {
   return data || [];
 }
 
+// 新建纪念日
+export async function createAnniversary({ coupleId, ownerId, title, date, isLunar, type, isPrivate }) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('anniversaries')
+    .insert({
+      couple_id: coupleId, owner_id: ownerId, title, date,
+      is_lunar: !!isLunar, type: type || null, is_private: !!isPrivate
+    })
+    .select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// 更新纪念日
+export async function updateAnniversary(id, patch) {
+  if (!sb) await initSupabase();
+  const clean = {};
+  if ('title' in patch) clean.title = patch.title;
+  if ('date' in patch) clean.date = patch.date;
+  if ('isLunar' in patch) clean.is_lunar = patch.isLunar;
+  if ('type' in patch) clean.type = patch.type;
+  if ('isPrivate' in patch) clean.is_private = patch.isPrivate;
+  if (!Object.keys(clean).length) return;
+  const { error } = await sb.from('anniversaries').update(clean).eq('id', id);
+  if (error) throw error;
+}
+
+// 删除纪念日（软删）
+export async function deleteAnniversary(id) {
+  if (!sb) await initSupabase();
+  const { error } = await sb.from('anniversaries').update({ is_deleted: true }).eq('id', id);
+  if (error) throw error;
+}
+
+// 计划（未删除）
+export async function loadPlans(coupleId) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('plans')
+    .select('*').eq('couple_id', coupleId).eq('is_deleted', false)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+// 新建计划
+export async function createPlan({ coupleId, ownerId, title, description, type, status }) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('plans')
+    .insert({
+      couple_id: coupleId, owner_id: ownerId, title,
+      description: description || null, type: type || null,
+      status: status || 'idea'
+    })
+    .select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// 更新计划
+export async function updatePlan(id, patch) {
+  if (!sb) await initSupabase();
+  const clean = {};
+  if ('title' in patch) clean.title = patch.title;
+  if ('description' in patch) clean.description = patch.description;
+  if ('type' in patch) clean.type = patch.type;
+  if ('status' in patch) clean.status = patch.status;
+  if (!Object.keys(clean).length) return;
+  const { error } = await sb.from('plans').update(clean).eq('id', id);
+  if (error) throw error;
+}
+
+// 删除计划（软删）
+export async function deletePlan(id) {
+  if (!sb) await initSupabase();
+  const { error } = await sb.from('plans').update({ is_deleted: true }).eq('id', id);
+  if (error) throw error;
+}
+
 // 今日/未完成任务（含指派执行人昵称与代表色）
 export async function loadTodayTasks(coupleId) {
   if (!sb) await initSupabase();
@@ -265,7 +343,7 @@ export async function loadTodayCheckins(coupleId, myId) {
 export async function loadRecentDiary(coupleId, limit = 5) {
   if (!sb) await initSupabase();
   const { data, error } = await sb.from('diary_entries')
-    .select('*, author:profiles!diary_entries_author_id_fkey(nickname, color)')
+    .select('*, author:profiles(nickname, color)')
     .eq('couple_id', coupleId).eq('is_deleted', false)
     .order('created_at', { ascending: false }).limit(limit);
   if (error) throw error;
@@ -291,14 +369,172 @@ export async function toggleTask(taskId, done) {
   if (error) throw error;
 }
 
+// 任务列表（未删除，含指派执行人昵称/代表色）
+export async function loadTasks(coupleId) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('tasks')
+    .select('*, assignee:profiles!tasks_assignee_id_fkey(nickname, color)')
+    .eq('couple_id', coupleId).eq('is_deleted', false)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+// 新建任务
+export async function createTask({ coupleId, ownerId, title, assigneeId, isPrivate, deadline }) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('tasks')
+    .insert({
+      couple_id: coupleId, owner_id: ownerId, title,
+      assignee_id: assigneeId || ownerId,
+      status: 'todo',
+      is_private: !!isPrivate,
+      deadline: deadline || null
+    })
+    .select('*, assignee:profiles!tasks_assignee_id_fkey(nickname, color)')
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// 更新任务
+export async function updateTask(id, patch) {
+  if (!sb) await initSupabase();
+  const clean = {};
+  if ('title' in patch) clean.title = patch.title;
+  if ('assigneeId' in patch) clean.assignee_id = patch.assigneeId;
+  if ('status' in patch) clean.status = patch.status;
+  if ('isPrivate' in patch) clean.is_private = patch.isPrivate;
+  if ('deadline' in patch) clean.deadline = patch.deadline; // 允许置空(null)
+  if (!Object.keys(clean).length) return;
+  const { error } = await sb.from('tasks').update(clean).eq('id', id);
+  if (error) throw error;
+}
+
+// 删除任务（软删）
+export async function deleteTask(id) {
+  if (!sb) await initSupabase();
+  const { error } = await sb.from('tasks').update({ is_deleted: true }).eq('id', id);
+  if (error) throw error;
+}
+
 // 打卡（一人一天一类型唯一）
 export async function checkIn(coupleId, type, note = '') {
   await ensureSession();
   const uid = await currentUserId();
   const { error } = await sb.from('checkins').upsert(
-    { couple_id: coupleId, type, who: uid, note },
-    { onConflict: 'couple_id,type,who,date' }
+    { couple_id: coupleId, type, owner_id: uid, note },
+    { onConflict: 'couple_id,type,owner_id,date' }
   );
+  if (error) throw error;
+}
+
+// 取某类型最近打卡日期（用于前端计算连续天数）
+export async function loadCheckinsByType(coupleId, ownerId, type, sinceDays = 400) {
+  if (!sb) await initSupabase();
+  const since = toISODate(new Date(Date.now() - sinceDays * 86400000));
+  const { data, error } = await sb.from('checkins')
+    .select('date, note')
+    .eq('couple_id', coupleId).eq('owner_id', ownerId).eq('type', type)
+    .gte('date', since).order('date', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+// ============================================================
+// 影视（条目同步去重·影评按人一份）
+// ============================================================
+
+// 影视列表（按 想看/已看 过滤，未删除）
+export async function loadMovies(coupleId, watched) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('movies')
+    .select('*').eq('couple_id', coupleId).eq('is_deleted', false).eq('watched', watched)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+// 单部影视
+export async function loadMovieById(id) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('movies').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// 新建/更新影视（按 external_id 去重，想看→已看 同一部不重复）
+export async function upsertMovie({ coupleId, externalId, title, poster, watched, meta, officialRating }) {
+  await ensureSession();
+  const payload = {
+    couple_id: coupleId,
+    external_id: externalId,
+    title,
+    poster: poster || null,
+    watched: !!watched,
+    is_deleted: false
+  };
+  if (meta !== undefined) payload.meta = meta || null;
+  if (officialRating !== undefined) payload.official_rating = officialRating == null ? null : Number(officialRating);
+  const { data, error } = await sb.from('movies')
+    .upsert(payload, { onConflict: 'couple_id,external_id' })
+    .select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// 编辑影视（标题/海报）
+export async function updateMovie(id, patch) {
+  await ensureSession();
+  const clean = {};
+  if ('title' in patch) clean.title = patch.title;
+  if ('poster' in patch) clean.poster = patch.poster || null;
+  if (!Object.keys(clean).length) return;
+  const { error } = await sb.from('movies').update(clean).eq('id', id);
+  if (error) throw error;
+}
+
+// 标记已看 / 未看
+export async function setMovieWatched(id, watched) {
+  await ensureSession();
+  const { error } = await sb.from('movies').update({ watched: !!watched }).eq('id', id);
+  if (error) throw error;
+}
+
+// 软删除影视
+export async function deleteMovie(id) {
+  await ensureSession();
+  const { error } = await sb.from('movies').update({ is_deleted: true }).eq('id', id);
+  if (error) throw error;
+}
+
+// 某部影视的全部影评（双方，详情页展示）
+export async function loadReviewsForMovie(coupleId, movieId) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('movie_reviews')
+    .select('owner_id, rating, review').eq('couple_id', coupleId).eq('movie_id', movieId);
+  if (error) throw error;
+  return data || [];
+}
+
+// 我的全部影评（列表页快速取评分映射）
+export async function loadMyReviews(coupleId, ownerId) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('movie_reviews')
+    .select('movie_id, rating').eq('couple_id', coupleId).eq('owner_id', ownerId);
+  if (error) throw error;
+  return data || [];
+}
+
+// 写/改自己的影评（按 人 一份 upsert）
+export async function upsertReview({ coupleId, movieId, rating, review }) {
+  await ensureSession();
+  const uid = await currentUserId();
+  const { error } = await sb.from('movie_reviews').upsert({
+    couple_id: coupleId, owner_id: uid, movie_id: movieId,
+    rating: rating == null ? null : rating,
+    review: review || null
+  }, { onConflict: 'couple_id,owner_id,movie_id' });
   if (error) throw error;
 }
 
@@ -310,7 +546,7 @@ export async function checkIn(coupleId, type, note = '') {
 export async function loadDiaryEntries(coupleId, limit = 60) {
   if (!sb) await initSupabase();
   const { data, error } = await sb.from('diary_entries')
-    .select('*, author:profiles!diary_entries_author_id_fkey(nickname, color)')
+    .select('*, author:profiles(nickname, color)')
     .eq('couple_id', coupleId).eq('is_deleted', false)
     .order('created_at', { ascending: false }).limit(limit);
   if (error) throw error;
@@ -321,7 +557,7 @@ export async function loadDiaryEntries(coupleId, limit = 60) {
 export async function loadDiaryEntry(id) {
   if (!sb) await initSupabase();
   const { data, error } = await sb.from('diary_entries')
-    .select('*, author:profiles!diary_entries_author_id_fkey(nickname, color), photos:diary_photos(id, url, created_at)')
+    .select('*, author:profiles(nickname, color), photos:diary_photos(id, url, created_at)')
     .eq('id', id).eq('is_deleted', false).maybeSingle();
   if (error) throw error;
   return data;
@@ -333,7 +569,7 @@ export async function createDiary({ coupleId, body, files = [] }) {
   const uid = await currentUserId();
   // 1. 插入日记正文
   const { data: entry, error } = await sb.from('diary_entries')
-    .insert({ couple_id: coupleId, author_id: uid, body }).select('id').maybeSingle();
+    .insert({ couple_id: coupleId, owner_id: uid, body }).select('id').maybeSingle();
   if (error) throw new Error('写日记失败：' + (error.message || error));
   if (!entry || !entry.id) throw new Error('写日记后未取到 id');
   // 2. 逐个上传图片并写入 diary_photos（url 存 storage path，读取时直链）
@@ -361,6 +597,27 @@ export async function deleteDiary(id) {
   await ensureSession();
   const { error } = await sb.from('diary_entries').update({ is_deleted: true }).eq('id', id);
   if (error) throw error;
+}
+
+// 照片墙：聚合全部日记图片（按时间倒序）
+export async function loadAllPhotos(coupleId, limit = 120) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('diary_photos')
+    .select('id, url, created_at, entry:diary_entries!diary_photos_entry_id_fkey(couple_id, is_deleted)')
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data || [])
+    .filter((p) => p.entry && p.entry.couple_id === coupleId && !p.entry.is_deleted);
+}
+
+// 回忆时光轴：聚合多源（diary/anniversary/movie/plan/checkin）
+export async function loadTimeline(coupleId, limit = 80) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('timeline')
+    .select('*').eq('couple_id', coupleId)
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data || [];
 }
 
 // 上传日记图片到 Storage（diary bucket，需 public 以直链显示）

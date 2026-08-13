@@ -5,28 +5,48 @@ import * as home from './views/home.js';
 import * as memory from './views/memory.js';
 import * as chat from './views/chat.js';
 import * as mine from './views/mine.js';
+import * as anniversary from './views/anniversary.js';
+import * as plan from './views/plan.js';
+import * as task from './views/task.js';
+import * as movie from './views/movie.js';
+import * as movieSearch from './views/movie-search.js';
+import * as checkin from './views/checkin.js';
 import * as pairing from './views/pairing.js';
 import * as onboarding from './views/onboarding.js';
+import * as apiConfig from './views/api-config.js';
+import * as settings from './views/settings.js';
 
 const ICONS = {
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/><path d="M12 19v-4.4"/><path d="M12 14.6c-.9-1-2.2-.8-2.2-2 0-.7.7-1.2 1.2-.9.3.2.9.2 1.2 0 .5-.3 1.2.2 1.2.9 0 1.2-1.3 1-2.2 2z" fill="currentColor" stroke="none"/></svg>',
+  movie: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18M3 15h18M8 4v16M16 4v16"/></svg>',
   memory: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H5z"/><path d="M19 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6z"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/></svg>',
   mine: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.3"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/></svg>'
 };
 
+// 底部 Tab 顺序：小屋（首页）→ 影视 → 聊天 → 记忆 → 我的
 const TABS = [
-  { key: 'home', label: '首页', icon: ICONS.home, mod: home },
-  { key: 'memory', label: '记忆', icon: ICONS.memory, mod: memory },
+  { key: 'home', label: '小屋', icon: ICONS.home, mod: home },
+  { key: 'movie', label: '影视', icon: ICONS.movie, mod: movie },
   { key: 'chat', label: '聊天', icon: ICONS.chat, mod: chat },
+  { key: 'memory', label: '记忆', icon: ICONS.memory, mod: memory },
   { key: 'mine', label: '我的', icon: ICONS.mine, mod: mine }
 ];
 
 const ROUTES = {
   '/home': home,
-  '/memory': memory,
+  '/movie': movie,
   '/chat': chat,
+  '/memory': memory,
   '/mine': mine,
+  '/movies': movie,
+  '/movie-search': movieSearch,
+  '/anniversaries': anniversary,
+  '/plans': plan,
+  '/tasks': task,
+  '/checkins': checkin,
+  '/api-config': apiConfig,
+  '/settings': settings,
   '/pairing': pairing,
   '/onboarding': onboarding
 };
@@ -93,7 +113,9 @@ async function renderTabbar() {
 }
 
 function syncTabActive() {
-  const key = (location.hash.replace('#', '') || '/home').replace('/', '');
+  const path = (location.hash.replace('#', '') || '/home');
+  const map = { '/home': 'home', '/movie': 'movie', '/movies': 'movie', '/chat': 'chat', '/memory': 'memory', '/mine': 'mine' };
+  const key = map[path] || null;
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.key === key));
 }
 
@@ -112,7 +134,7 @@ async function route() {
   // 视图容器样式：聊天页全屏独立滚动；二级页隐藏 Tab
   const cls = ['view'];
   if (path === '/chat') cls.push('is-chat');
-  if (path === '/pairing' || path === '/onboarding') cls.push('no-tabbar');
+  if (path === '/pairing' || path === '/onboarding' || path === '/anniversaries' || path === '/plans' || path === '/tasks' || path === '/checkins' || path === '/movie-search' || path === '/api-config' || path === '/settings') cls.push('no-tabbar');
   root.className = cls.join(' ');
 
   root.innerHTML = '';
