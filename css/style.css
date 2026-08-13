@@ -478,3 +478,52 @@ body {
 .photo-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
 .photo-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface-2); }
 .btn.sm { padding: 7px 12px; font-size: 13px; }
+
+/* ---------- 记忆 · 日记（第6步） ---------- */
+.diary-list { display: flex; flex-direction: column; }
+.diary-item {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 10px; border-bottom: 1px solid var(--line);
+  cursor: pointer; transition: background .15s;
+}
+.diary-item:active { background: var(--surface-2); }
+.diary-main { flex: 1; min-width: 0; }
+.diary-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sub); margin-bottom: 4px; }
+.diary-meta .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.diary-meta .name { font-weight: 700; color: var(--text); }
+.diary-meta .time { margin-left: auto; }
+.diary-preview { font-size: 14px; line-height: 1.5; color: var(--text); overflow: hidden; }
+
+.diary-form { padding: 6px 2px; }
+.diary-textarea {
+  width: 100%; min-height: 150px; resize: vertical;
+  border: none; background: var(--surface-2); border-radius: var(--radius);
+  padding: 14px; font-size: 16px; line-height: 1.6; color: var(--text);
+  font-family: var(--font-hand);
+}
+.diary-textarea:focus { outline: 2px solid color-mix(in srgb, var(--primary) 40%, transparent); }
+.emoji-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; }
+.emoji-btn { font-size: 20px; background: var(--surface-2); border: none; border-radius: 10px; padding: 4px 7px; cursor: pointer; }
+.emoji-btn:active { background: var(--primary-soft); }
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0; }
+.photo-cell { position: relative; aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); }
+.photo-cell img { width: 100%; height: 100%; object-fit: cover; }
+.photo-del {
+  position: absolute; top: 3px; right: 3px; width: 22px; height: 22px;
+  border: none; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff;
+  font-size: 15px; line-height: 1; cursor: pointer;
+}
+.add-photo {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 8px; padding: 10px 14px; border-radius: 999px;
+  background: var(--primary-soft); color: var(--primary); font-size: 14px; cursor: pointer;
+}
+
+.diary-detail { padding: 4px 2px; }
+.detail-author { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.diary-imgs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 14px; }
+.diary-img { aspect-ratio: 1; border-radius: var(--radius); overflow: hidden; background: var(--surface-2); }
+.diary-img img { width: 100%; height: 100%; object-fit: cover; }
+.diary-body { font-size: 16px; line-height: 1.8; color: var(--text); white-space: normal; word-break: break-word; }
+.diary-actions { display: flex; gap: 10px; margin-top: 20px; }
+.diary-actions .btn { flex: 1; }

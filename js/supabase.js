@@ -301,3 +301,81 @@ export async function checkIn(coupleId, type, note = '') {
   );
   if (error) throw error;
 }
+
+// ============================================================
+// 记忆·日记（第6步）：列表 / 详情 / 写 / 编辑 / 删除（软）
+// ============================================================
+
+// 日记列表（倒序，含作者昵称/代表色）
+export async function loadDiaryEntries(coupleId, limit = 60) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('diary_entries')
+    .select('*, author:profiles!diary_entries_author_id_fkey(nickname, color)')
+    .eq('couple_id', coupleId).eq('is_deleted', false)
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
+// 日记详情（含作者 + 图片列表）
+export async function loadDiaryEntry(id) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('diary_entries')
+    .select('*, author:profiles!diary_entries_author_id_fkey(nickname, color), photos:diary_photos(id, url, created_at)')
+    .eq('id', id).eq('is_deleted', false).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// 写日记（文字 + 多图）。图片先上传 Storage 再入库 diary_photos
+export async function createDiary({ coupleId, body, files = [] }) {
+  await ensureSession();
+  const uid = await currentUserId();
+  // 1. 插入日记正文
+  const { data: entry, error } = await sb.from('diary_entries')
+    .insert({ couple_id: coupleId, author_id: uid, body }).select('id').maybeSingle();
+  if (error) throw new Error('写日记失败：' + (error.message || error));
+  if (!entry || !entry.id) throw new Error('写日记后未取到 id');
+  // 2. 逐个上传图片并写入 diary_photos（url 存 storage path，读取时直链）
+  for (const f of files) {
+    try {
+      const path = await uploadDiaryImage(coupleId, f);
+      const { error: pe } = await sb.from('diary_photos').insert({ entry_id: entry.id, url: path });
+      if (pe) console.warn('图片入库失败', pe);
+    } catch (e) {
+      console.warn('图片上传失败', e);
+    }
+  }
+  return entry;
+}
+
+// 编辑日记正文（仅作者，由 RLS 约束）
+export async function updateDiary(id, patch) {
+  await ensureSession();
+  const { error } = await sb.from('diary_entries').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+// 软删除日记（仅作者，由 RLS 约束）
+export async function deleteDiary(id) {
+  await ensureSession();
+  const { error } = await sb.from('diary_entries').update({ is_deleted: true }).eq('id', id);
+  if (error) throw error;
+}
+
+// 上传日记图片到 Storage（diary bucket，需 public 以直链显示）
+export async function uploadDiaryImage(coupleId, file) {
+  await ensureSession();
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const safeExt = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(ext) ? ext : 'jpg';
+  const path = `diary/${coupleId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
+  const { error } = await sb.storage.from('diary').upload(path, file, { cacheControl: '3600', upsert: false });
+  if (error) throw error;
+  return path;
+}
+
+// 日记图片直链（需 diary bucket 为 public）
+export function getDiaryImageUrl(path) {
+  if (!sb || !path) return '';
+  return sb.storage.from('diary').getPublicUrl(path).data.publicUrl;
+}
