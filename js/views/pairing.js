@@ -1,18 +1,29 @@
 // 配对伴侣（第3步）：设置内的配对入口，也可从首页/聊天到达
-import { joinCouple, getCouple } from '../supabase.js';
+import { joinCouple, getCouple, getInviteCode } from '../supabase.js';
 import { toast, copyText, escapeHtml, pageHeader } from '../ui.js';
 
 export async function render(root, ctx) {
-  // 刷新 couple，确保邀请码/起始日等显示正确
+  // 优先通过 RPC 取邀请码（绕过 couples RLS 读取异常）
+  let inviteError = '';
+  let code = null;
+  try {
+    const r = await getInviteCode();
+    if (r && r.ok) code = r.code;
+    else inviteError = (r && r.error) || '取邀请码失败';
+  } catch (e) {
+    console.warn('getInviteCode 失败', e);
+    inviteError = (e && e.message) || '取邀请码失败';
+  }
+
+  // 同时刷新 couple 行（用于起始日等）
   let couple = ctx.couple;
-  if (!couple && ctx.coupleId) {
+  if (ctx.coupleId && !couple) {
     try { couple = await getCouple(ctx.coupleId); ctx.couple = couple; }
-    catch (e) { console.warn('刷新空间失败', e); }
+    catch (e) { console.warn('getCouple 失败', e); }
   }
 
   const paired = ctx.isPaired();
   const partner = ctx.partner || {};
-  const code = couple ? couple.pair_code : null;
 
   root.innerHTML = `
     ${pageHeader('配对伴侣')}
@@ -40,7 +51,7 @@ export async function render(root, ctx) {
           <div class="pair-code" id="mycode">${escapeHtml(code || '------')}</div>
           <button class="btn ghost sm" id="copy" ${!code ? 'disabled' : ''}>复制邀请码</button>
         </div>
-        ${!code ? '<p class="tip" style="color:var(--danger)">邀请码加载失败，请下拉刷新或返回重进</p>' : ''}
+        ${!code ? `<p class="tip" style="color:var(--danger)">${escapeHtml(inviteError || '邀请码加载失败')}</p>` : ''}
       </div>
       <div class="card">
         <div class="section-title">输入 TA 的邀请码</div>

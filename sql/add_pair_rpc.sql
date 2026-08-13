@@ -53,3 +53,25 @@ begin
   return json_build_object('ok', true, 'couple_id', v_target);
 end;
 $$;
+
+-- ============================================================
+-- 取当前用户邀请码（绕过 couples RLS 读取异常，security definer）
+-- ============================================================
+create or replace function get_my_invite_code()
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_uid  uuid := auth.uid();
+  v_code text;
+begin
+  select c.pair_code into v_code
+  from couples c
+  join profiles p on p.couple_id = c.id
+  where p.id = v_uid;
+
+  if v_code is null then
+    return json_build_object('ok', false, 'error', '未找到个人空间');
+  end if;
+
+  return json_build_object('ok', true, 'code', v_code);
+end;
+$$;

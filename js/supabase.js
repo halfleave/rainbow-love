@@ -106,3 +106,10 @@ export async function joinCouple(code) {
   if (error) throw error;
   return data; // { ok:true, couple_id } | { ok:false, error }
 }
+
+// 取当前用户邀请码（RPC 方式，更稳）
+export async function getInviteCode() {
+  const { data, error } = await sb.rpc('get_my_invite_code');
+  if (error) throw error;
+  return data; // { ok:true, code } | { ok:false, error }
+}
