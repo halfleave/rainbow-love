@@ -1,5 +1,5 @@
 // 首启个人资料引导（第3步）：设置昵称 + 代表色，可跳过
-import { updateProfile } from '../supabase.js';
+import { createSingleSpace } from '../supabase.js';
 import { toast, escapeHtml } from '../ui.js';
 
 const COLORS = ['#E86A92', '#F4A261', '#A3C9A8', '#8E7DBE', '#5BA4CF', '#E9C46A'];
@@ -36,7 +36,8 @@ export async function render(root, ctx) {
     const name = root.querySelector('#nick').value.trim();
     if (!name) { toast('给个昵称吧～'); return; }
     try {
-      const updated = await updateProfile({ nickname: name, color });
+      // 直接用 RPC 原子创建/更新单人空间，避免 session 漂移导致 upsert RLS 失败
+      const updated = await createSingleSpace(name, color);
       await ctx.applyProfile(updated);
       toast('开始吧～');
       ctx.navigate('/home');

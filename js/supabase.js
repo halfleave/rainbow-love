@@ -70,21 +70,29 @@ export async function ensureSession() {
   return r.session;
 }
 
-// 取当前档案；不存在则原子创建「单人空间」+ 默认档案（个人模式可独立使用）
+// 原子创建/刷新「单人空间」：couple + profile 一起建，避免 couples select RLS
 // 使用 RPC 绕过 couples 表 select RLS：刚创建空间时 profile 尚无 couple_id，直接 select couples 会被拒绝
+export async function createSingleSpace(nickname = '我', color = '#E86A92') {
+  if (!sb) await initSupabase();
+  await ensureSession();
+  const { data: r, error } = await sb.rpc('create_single_space', {
+    p_nickname: nickname,
+    p_color: color
+  });
+  if (error) throw new Error('创建个人空间失败：' + (error.message || error));
+  if (!r || !r.ok) throw new Error('创建个人空间失败：' + (r?.error || '未知错误'));
+  return r.profile;
+}
+
+// 取当前档案；不存在则创建默认「单人空间」
 export async function getOrCreateProfile() {
   if (!sb) await initSupabase();
   const uid = await currentUserId();
   const { data } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
   if (data) return { profile: data, isNew: false };
 
-  const { data: r, error } = await sb.rpc('create_single_space', {
-    p_nickname: '我',
-    p_color: '#E86A92'
-  });
-  if (error) throw new Error('创建个人空间失败：' + (error.message || error));
-  if (!r || !r.ok) throw new Error('创建个人空间失败：' + (r?.error || '未知错误'));
-  return { profile: r.profile, isNew: true };
+  const profile = await createSingleSpace('我', '#E86A92');
+  return { profile, isNew: true };
 }
 
 export async function updateProfile(patch) {
