@@ -81,8 +81,12 @@ export async function getOrCreateProfile() {
 
 export async function updateProfile(patch) {
   const uid = await currentUserId();
-  const { data, error } = await sb.from('profiles').update(patch).eq('id', uid).select().single();
+  // 先更新；如果 profile 行因任何原因不存在，则改为 upsert
+  const { error } = await sb.from('profiles').upsert({ id: uid, ...patch });
   if (error) throw error;
+  // upsert 不返回行时，再单独读一次（兼容不同 Supabase 返回行为）
+  const { data, error: readErr } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
+  if (readErr) throw readErr;
   if (!data) throw new Error('更新后读取档案为空，请检查 RLS 策略');
   return data;
 }
