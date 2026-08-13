@@ -10,19 +10,25 @@ let initPromise = null;
 let cachedUid = null;
 
 async function currentUserId() {
-  if (cachedUid) return cachedUid;
   if (!sb) await initSupabase();
-  // session 可能因刷新/过期丢失，兜底重新匿名登录
-  let { data: { user }, error } = await sb.auth.getUser();
-  if (error || !user) {
-    await ensureSession();
-    const got = await sb.auth.getUser();
-    user = got.data.user;
-    error = got.error;
+  // 以本地 session 为准；如果与缓存不一致则更新缓存，防止重新登录后 uid 对不上
+  const { data: { session }, error: se } = await sb.auth.getSession();
+  if (se) throw se;
+  if (session?.user) {
+    if (cachedUid && cachedUid !== session.user.id) {
+      console.warn('[auth] uid 已变更（session 丢失后重新登录）:', cachedUid, '->', session.user.id);
+    }
+    cachedUid = session.user.id;
+    return cachedUid;
   }
+  // session 丢失，兜底重新匿名登录
+  const { data: r, error } = await sb.auth.signInAnonymously();
   if (error) throw error;
-  if (!user) throw new Error('未登录，请先开启匿名登录');
-  cachedUid = user.id;
+  if (!r.session?.user) throw new Error('匿名登录后仍无 session');
+  if (cachedUid && cachedUid !== r.session.user.id) {
+    console.warn('[auth] uid 已变更（重新匿名登录）:', cachedUid, '->', r.session.user.id);
+  }
+  cachedUid = r.session.user.id;
   return cachedUid;
 }
 
@@ -59,6 +65,8 @@ export async function ensureSession() {
   if (data.session) return data.session;
   const { data: r, error } = await sb.auth.signInAnonymously();
   if (error) throw error;
+  // 重新登录后 uid 变了，清掉缓存让 currentUserId 重新取
+  cachedUid = null;
   return r.session;
 }
 
