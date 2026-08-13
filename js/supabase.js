@@ -12,10 +12,17 @@ let cachedUid = null;
 async function currentUserId() {
   if (cachedUid) return cachedUid;
   if (!sb) await initSupabase();
-  const { data, error } = await sb.auth.getUser();
+  // session 可能因刷新/过期丢失，兜底重新匿名登录
+  let { data: { user }, error } = await sb.auth.getUser();
+  if (error || !user) {
+    await ensureSession();
+    const got = await sb.auth.getUser();
+    user = got.data.user;
+    error = got.error;
+  }
   if (error) throw error;
-  if (!data.user) throw new Error('未登录，请先开启匿名登录');
-  cachedUid = data.user.id;
+  if (!user) throw new Error('未登录，请先开启匿名登录');
+  cachedUid = user.id;
   return cachedUid;
 }
 
@@ -80,6 +87,7 @@ export async function getOrCreateProfile() {
 }
 
 export async function updateProfile(patch) {
+  await ensureSession();        // 确保 session 存在（防止刷新/过期丢失）
   const uid = await currentUserId();
   // 先更新；如果 profile 行因任何原因不存在，则改为 upsert
   const { error } = await sb.from('profiles').upsert({ id: uid, ...patch });
