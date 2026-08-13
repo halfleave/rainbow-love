@@ -75,3 +75,48 @@ begin
   return json_build_object('ok', true, 'code', v_code);
 end;
 $$;
+
+-- ============================================================
+-- 原子创建「单人空间」：couple + profile 一起建，避免 couples select RLS
+-- ============================================================
+create or replace function create_single_space(p_nickname text, p_color text)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_uid    uuid := auth.uid();
+  v_exists profiles%rowtype;
+  v_code   text;
+  v_tries  int := 0;
+  v_couple couples%rowtype;
+  v_profile profiles%rowtype;
+begin
+  -- 已有空间直接返回
+  select * into v_exists from profiles where id = v_uid;
+  if found then
+    select * into v_couple from couples where id = v_exists.couple_id;
+    return json_build_object('ok', true, 'profile', row_to_json(v_exists), 'couple', row_to_json(v_couple));
+  end if;
+
+  -- 生成唯一邀请码
+  loop
+    v_code := upper(substr(md5(random()::text), 1, 6));
+    -- 过滤易混淆字符
+    v_code := replace(replace(replace(replace(replace(replace(v_code, '0', '2'), 'O', '3'), 'I', '4'), 'L', '5'), '1', '6'), 'Z', '7');
+    v_tries := v_tries + 1;
+    begin
+      insert into couples (pair_code, start_date) values (v_code, current_date) returning * into v_couple;
+      exit;
+    exception when unique_violation then
+      if v_tries >= 20 then
+        return json_build_object('ok', false, 'error', '邀请码生成失败，请重试');
+      end if;
+    end;
+  end loop;
+
+  -- 创建 profile
+  insert into profiles (id, couple_id, nickname, color)
+  values (v_uid, v_couple.id, coalesce(nullif(p_nickname,''), '我'), coalesce(nullif(p_color,''), '#E86A92'))
+  returning * into v_profile;
+
+  return json_build_object('ok', true, 'profile', row_to_json(v_profile), 'couple', row_to_json(v_couple));
+end;
+$$;
