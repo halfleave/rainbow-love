@@ -226,3 +226,78 @@ export function unsubscribeChat(channel) {
     try { sb.removeChannel(channel); } catch (_) {}
   }
 }
+
+// ============================================================
+// 首页聚合（第5步）：只读拉取
+// ============================================================
+
+// 纪念日（未删除）
+export async function loadAnniversaries(coupleId) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('anniversaries')
+    .select('*').eq('couple_id', coupleId).eq('is_deleted', false)
+    .order('date', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+// 今日/未完成任务（含指派执行人昵称与代表色）
+export async function loadTodayTasks(coupleId) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('tasks')
+    .select('*, assignee:profiles!tasks_assignee_id_fkey(nickname, color)')
+    .eq('couple_id', coupleId).eq('is_deleted', false);
+  if (error) throw error;
+  return (data || []).filter((t) => t.status !== 'done');
+}
+
+// 今日打卡（含本人/伴侣）
+export async function loadTodayCheckins(coupleId, myId) {
+  if (!sb) await initSupabase();
+  const today = toISODate(new Date());
+  const { data, error } = await sb.from('checkins')
+    .select('*').eq('couple_id', coupleId).eq('date', today);
+  if (error) throw error;
+  return data || [];
+}
+
+// 最近日记（含作者昵称/代表色）
+export async function loadRecentDiary(coupleId, limit = 5) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('diary_entries')
+    .select('*, author:profiles!diary_entries_author_id_fkey(nickname, color)')
+    .eq('couple_id', coupleId).eq('is_deleted', false)
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
+// 最近照片（来自日记图片，按时间倒序，过滤本空间未删除）
+export async function loadRecentPhotos(coupleId, limit = 6) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.from('diary_photos')
+    .select('*, entry:diary_entries!diary_photos_entry_id_fkey(couple_id, is_deleted)')
+    .order('created_at', { ascending: false }).limit(limit * 4);
+  if (error) throw error;
+  return (data || [])
+    .filter((p) => p.entry && p.entry.couple_id === coupleId && !p.entry.is_deleted)
+    .slice(0, limit);
+}
+
+// 切换任务状态（今日速览里勾选）
+export async function toggleTask(taskId, done) {
+  await ensureSession();
+  const { error } = await sb.from('tasks').update({ status: done ? 'done' : 'todo' }).eq('id', taskId);
+  if (error) throw error;
+}
+
+// 打卡（一人一天一类型唯一）
+export async function checkIn(coupleId, type, note = '') {
+  await ensureSession();
+  const uid = await currentUserId();
+  const { error } = await sb.from('checkins').upsert(
+    { couple_id: coupleId, type, who: uid, note },
+    { onConflict: 'couple_id,type,who,date' }
+  );
+  if (error) throw error;
+}

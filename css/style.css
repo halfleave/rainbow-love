@@ -431,4 +431,50 @@ body {
 .seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; }
 .seg button { border: none; background: transparent; color: var(--text-sub); padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); }
 .seg button.on { background: var(--primary); color: #fff; }
+
+/* ---------- 第5步 · 首页聚合 ---------- */
+.ann-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ann-left { flex: 1; min-width: 0; }
+.ann-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.ann-sub { font-size: 13px; color: var(--primary-strong); font-weight: 600; }
+.ann-heart { font-size: 28px; filter: drop-shadow(0 2px 6px rgba(232,106,146,.4)); animation: pulse 1.8s ease-in-out infinite; }
+.ann-more { text-align: right; font-size: 12px; color: var(--text-sub); margin: -6px 4px 0; }
+
+.word-card .word {
+  font-family: var(--font-hand);
+  font-size: 19px; line-height: 1.7; color: var(--text);
+  margin: 6px 0 12px; text-align: center; font-weight: 600;
+}
+.sub2 { font-size: 12px; color: var(--text-sub); margin: 14px 0 8px; font-weight: 600; letter-spacing: .5px; }
+
+.checkin-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.checkin-chip {
+  border: 1.5px solid var(--line); border-radius: 999px;
+  padding: 7px 14px; font-size: 13px; cursor: pointer;
+  background: var(--surface); color: var(--text-sub);
+  transition: all .18s ease; user-select: none;
+}
+.checkin-chip.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+
+.task-list { display: flex; flex-direction: column; gap: 6px; }
+.task-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--radius-sm);
+  background: var(--surface-2); cursor: pointer; transition: opacity .2s ease;
+}
+.task-item .check { color: var(--text-sub); font-size: 16px; }
+.task-item .task-title { flex: 1; font-size: 14px; }
+.task-item .task-who { font-size: 12px; font-weight: 600; }
+.task-item.done { opacity: .5; }
+.task-item.done .task-title { text-decoration: line-through; }
+.task-item.done .check { color: var(--primary-strong); }
+
+.mini-diary { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.mini-diary:last-of-type { border-bottom: none; }
+.mini-body { flex: 1; min-width: 0; }
+.mini-meta { font-size: 12px; color: var(--text-sub); margin-bottom: 2px; }
+.mini-text { font-size: 14px; line-height: 1.5; color: var(--text); }
+
+.photo-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+.photo-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface-2); }
 .btn.sm { padding: 7px 12px; font-size: 13px; }

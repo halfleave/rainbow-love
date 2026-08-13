@@ -1,38 +1,192 @@
-// 首页（第3步基础：个人/情侣状态；完整聚合第5步）
-import { daysBetween, toISODate, escapeHtml } from '../ui.js';
+// 首页（第5步）：天数 / 纪念日倒计时 / 今日情话 / 今日速览 / 回忆入口
+import {
+  daysBetween, toISODate, escapeHtml, fmtDate
+} from '../ui.js';
+import {
+  loadAnniversaries, loadTodayTasks, loadTodayCheckins,
+  loadRecentDiary, loadRecentPhotos, toggleTask, checkIn
+} from '../supabase.js';
+import { nextOccurrence, formatLunar } from '../lunar.js';
+
+const WORDS = {
+  morning: [
+    '早安，想你想了一整夜。',
+    '新的一天，第一个念头是你。',
+    '今天也要好好吃早餐，记得想我。',
+    '阳光和你，都是我起床的理由。'
+  ],
+  afternoon: [
+    '忙里偷闲，也想和你说话。',
+    '午后的风很软，像你的手。',
+    '今天也要加油呀，我一直在。',
+    '无论多忙，你都是我心里的甜。'
+  ],
+  evening: [
+    '晚安，今天也辛苦啦。',
+    '想和你一起，虚度每一个黄昏。',
+    '今天有没有好好吃饭、好好想我？',
+    '夜色很美，可惜你不在身边。'
+  ]
+};
+
+function pickWord() {
+  const h = new Date().getHours();
+  const group = h < 11 ? WORDS.morning : h < 18 ? WORDS.afternoon : WORDS.evening;
+  return group[Math.floor(Math.random() * group.length)];
+}
+
+function countdownLabel(targetDateStr) {
+  const t = nextOccurrence(
+    Number(targetDateStr.slice(5, 7)),
+    Number(targetDateStr.slice(8, 10)),
+    new Date()
+  );
+  const n = daysBetween(toISODate(new Date()), toISODate(t));
+  if (n === 0) return '就是今天 🎉';
+  return `还有 ${n} 天`;
+}
 
 export async function render(root, ctx) {
-  const paired = ctx.isPaired();
+  const pair = ctx.isPaired();
   const start = ctx.couple ? ctx.couple.start_date : null;
   const days = start ? daysBetween(start, toISODate(new Date())) : 0;
   const me = ctx.me || {};
 
-  root.innerHTML = `
-    <div class="fade-in">
-      <div class="hero">
-        ${paired ? `
-          <div class="days">${days}<small>天</small></div>
-          <div class="since">从 ${escapeHtml(start)} 起，我们在一起</div>
-        ` : `
-          <div class="days" style="font-size:30px">${escapeHtml(me.nickname || '我')} 的空间</div>
-          <div class="since">个人模式 · 随时可邀请 TA</div>
-        `}
-        <div class="heart heartbeat">💗</div>
-      </div>
-
-      ${paired ? '' : `
-        <div class="card">
-          <div class="section-title">邀请伴侣 💞</div>
-          <p class="tip">在「我的 → 配对伴侣」生成邀请码，或输入 TA 的邀请码，即可共享所有回忆。</p>
-          <button class="btn primary block" id="goPair">去配对</button>
-        </div>
+  root.innerHTML = `<div class="fade-in" id="home-body">
+    <div class="hero">
+      ${pair ? `
+        <div class="days">${days}<small>天</small></div>
+        <div class="since">从 ${escapeHtml(start)} 起，我们在一起</div>
+      ` : `
+        <div class="days" style="font-size:28px">${escapeHtml(me.nickname || '我')} 的空间</div>
+        <div class="since">个人模式 · 随时可邀请 TA</div>
       `}
+      <div class="heart heartbeat">💗</div>
+    </div>
+    <div id="home-loader" class="placeholder"><div class="big">🌸</div><p>正在加载…</p></div>
+  </div>`;
 
-      <div class="placeholder">
-        <div class="big">🛠️</div>
-        <p>首页完整聚合（情话 / 速览 / 回忆入口）<br>将在第 5 步实现</p>
+  if (!pair) {
+    const b = root.querySelector('#home-loader');
+    b.outerHTML = `<div class="card"><div class="section-title">邀请伴侣 💞</div>
+      <p class="tip">在「我的 → 配对伴侣」生成邀请码，或输入 TA 的邀请码，即可共享所有回忆。</p>
+      <button class="btn primary block" id="goPair">去配对</button></div>`;
+    root.querySelector('#goPair')?.addEventListener('click', () => ctx.navigate('/pairing'));
+    return;
+  }
+
+  // 并发拉取首页数据
+  let ann = [], tasks = [], checks = [], diary = [], photos = [];
+  try {
+    [ann, tasks, checks, diary, photos] = await Promise.all([
+      loadAnniversaries(ctx.coupleId),
+      loadTodayTasks(ctx.coupleId),
+      loadTodayCheckins(ctx.coupleId, me.id),
+      loadRecentDiary(ctx.coupleId, 3),
+      loadRecentPhotos(ctx.coupleId, 6)
+    ]);
+  } catch (e) {
+    console.warn('首页数据拉取失败', e);
+  }
+
+  const word = pickWord();
+  const nextAnn = ann.length ? ann[0] : null;
+  const checkedMap = {};
+  checks.forEach((c) => { checkedMap[c.type] = c; });
+
+  root.querySelector('#home-loader').outerHTML = `
+    <!-- 纪念日倒计时 -->
+    <div class="card ann-card" id="annCard">
+      <div class="ann-left">
+        <div class="ann-title">${escapeHtml(nextAnn ? nextAnn.title : '还没有纪念日')}</div>
+        <div class="ann-sub">${nextAnn ? countdownLabel(nextAnn.date) : '去「我的」添加一个吧'}</div>
       </div>
-    </div>`;
+      <div class="ann-heart">💞</div>
+    </div>
+    ${ann.length > 1 ? `<div class="ann-more">还有 ${ann.length - 1} 个纪念日</div>` : ''}
 
-  root.querySelector('#goPair')?.addEventListener('click', () => ctx.navigate('/pairing'));
+    <!-- 今日情话 -->
+    <div class="card word-card">
+      <div class="section-title">今日情话</div>
+      <p class="word" id="word">${escapeHtml(word)}</p>
+      <button class="btn ghost sm" id="changeWord">换一句</button>
+    </div>
+
+    <!-- 今日速览 -->
+    <div class="card">
+      <div class="section-title">今日速览</div>
+      <div class="sub2">打卡</div>
+      <div class="checkin-row" id="checkinRow">
+        ${renderCheckin('morning', '🌅 早安', checkedMap.morning)}
+        ${renderCheckin('evening', '🌙 晚安', checkedMap.evening)}
+        ${renderCheckin('miss', '💭 想念', checkedMap.miss)}
+      </div>
+      <div class="sub2">任务 ${tasks.length ? '' : '（今天没有）'}</div>
+      <div class="task-list" id="taskList">
+        ${tasks.length ? tasks.map((t) => renderTask(t)).join('') : '<p class="tip">轻轻松松的一天 ✨</p>'}
+      </div>
+    </div>
+
+    <!-- 回忆入口 -->
+    <div class="card">
+      <div class="section-title">最新回忆</div>
+      ${diary.length ? diary.map((d) => `
+        <div class="mini-diary">
+          <div class="avatar xs" style="background:${escapeHtml((d.author && d.author.color) || '#ccc')}">${escapeHtml(((d.author && d.author.nickname) || '?')[0])}</div>
+          <div class="mini-body">
+            <div class="mini-meta">${escapeHtml((d.author && d.author.nickname) || 'TA')} · ${fmtDate(d.created_at)}</div>
+            <div class="mini-text">${escapeHtml(d.body.slice(0, 40))}${d.body.length > 40 ? '…' : ''}</div>
+          </div>
+        </div>`).join('') : '<p class="tip">还没有日记，去「记忆」写第一篇吧</p>'}
+      ${photos.length ? `
+        <div class="photo-strip">
+          ${photos.map((p) => `<img class="photo-thumb" src="${escapeHtml(p.url)}" alt="">`).join('')}
+        </div>` : ''}
+      <button class="btn ghost block" id="goMemory" style="margin-top:10px">进入记忆</button>
+    </div>
+  `;
+
+  root.querySelector('#changeWord')?.addEventListener('click', () => {
+    root.querySelector('#word').textContent = pickWord();
+  });
+  root.querySelector('#goMemory')?.addEventListener('click', () => ctx.navigate('/memory'));
+
+  // 打卡点击
+  root.querySelectorAll('.checkin-chip').forEach((chip) => {
+    chip.addEventListener('click', async () => {
+      const type = chip.dataset.type;
+      if (chip.classList.contains('on')) return;
+      chip.classList.add('on');
+      try { await checkIn(ctx.coupleId, type); }
+      catch (e) { chip.classList.remove('on'); ctx.toast('打卡失败：' + (e.message || e)); }
+    });
+  });
+
+  // 任务勾选
+  root.querySelectorAll('.task-item').forEach((item) => {
+    item.addEventListener('click', async () => {
+      const id = item.dataset.id;
+      item.classList.toggle('done');
+      const done = item.classList.contains('done');
+      try { await toggleTask(id, done); }
+      catch (e) { item.classList.toggle('done'); ctx.toast('更新失败：' + (e.message || e)); }
+    });
+  });
+}
+
+function renderCheckin(type, label, rec) {
+  const on = rec ? 'on' : '';
+  const note = rec && rec.note ? `· ${escapeHtml(rec.note)}` : '';
+  return `<div class="checkin-chip ${on}" data-type="${type}">
+    <span class="chip-label">${label}${note}</span>
+  </div>`;
+}
+
+function renderTask(t) {
+  const who = t.assignee ? `<span class="task-who" style="color:${escapeHtml(t.assignee.color || '#999')}">@${escapeHtml(t.assignee.nickname || 'TA')}</span>` : '';
+  return `<div class="task-item" data-id="${t.id}">
+    <span class="check">○</span>
+    <span class="task-title">${escapeHtml(t.title)}</span>
+    ${who}
+  </div>`;
 }
