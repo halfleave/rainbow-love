@@ -1,20 +1,7 @@
 // 彩虹 · 应用入口：Service Worker 注册、主题、底部 Tab、哈希路由
 import { isConfigured, initSupabase, sb, ensureSession, getOrCreateProfile, getCouple, getPartner } from './supabase.js';
 import { toast } from './ui.js';
-import * as home from './views/home.js';
-import * as memory from './views/memory.js';
-import * as chat from './views/chat.js';
-import * as mine from './views/mine.js';
-import * as anniversary from './views/anniversary.js';
-import * as plan from './views/plan.js';
-import * as task from './views/task.js';
-import * as movie from './views/movie.js';
-import * as movieSearch from './views/movie-search.js';
-import * as checkin from './views/checkin.js';
-import * as pairing from './views/pairing.js';
-import * as onboarding from './views/onboarding.js';
-import * as apiConfig from './views/api-config.js';
-import * as settings from './views/settings.js';
+// 视图模块改为按需动态 import()（见 ROUTES），首屏只加载必需 JS，避免一次性下载全部模块导致白屏
 
 const ICONS = {
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/><path d="M12 19v-4.4"/><path d="M12 14.6c-.9-1-2.2-.8-2.2-2 0-.7.7-1.2 1.2-.9.3.2.9.2 1.2 0 .5-.3 1.2.2 1.2.9 0 1.2-1.3 1-2.2 2z" fill="currentColor" stroke="none"/></svg>',
@@ -26,29 +13,30 @@ const ICONS = {
 
 // 底部 Tab 顺序：小屋（首页）→ 影视 → 聊天 → 记忆 → 我的
 const TABS = [
-  { key: 'home', label: '小屋', icon: ICONS.home, mod: home },
-  { key: 'movie', label: '影视', icon: ICONS.movie, mod: movie },
-  { key: 'chat', label: '聊天', icon: ICONS.chat, mod: chat },
-  { key: 'memory', label: '记忆', icon: ICONS.memory, mod: memory },
-  { key: 'mine', label: '我的', icon: ICONS.mine, mod: mine }
+  { key: 'home', label: '小屋', icon: ICONS.home },
+  { key: 'movie', label: '影视', icon: ICONS.movie },
+  { key: 'chat', label: '聊天', icon: ICONS.chat },
+  { key: 'memory', label: '记忆', icon: ICONS.memory },
+  { key: 'mine', label: '我的', icon: ICONS.mine }
 ];
 
+// 路由 → 视图模块路径（按需动态 import）
 const ROUTES = {
-  '/home': home,
-  '/movie': movie,
-  '/chat': chat,
-  '/memory': memory,
-  '/mine': mine,
-  '/movies': movie,
-  '/movie-search': movieSearch,
-  '/anniversaries': anniversary,
-  '/plans': plan,
-  '/tasks': task,
-  '/checkins': checkin,
-  '/api-config': apiConfig,
-  '/settings': settings,
-  '/pairing': pairing,
-  '/onboarding': onboarding
+  '/home': './views/home.js',
+  '/movie': './views/movie.js',
+  '/chat': './views/chat.js',
+  '/memory': './views/memory.js',
+  '/mine': './views/mine.js',
+  '/movies': './views/movie.js',
+  '/movie-search': './views/movie-search.js',
+  '/anniversaries': './views/anniversary.js',
+  '/plans': './views/plan.js',
+  '/tasks': './views/task.js',
+  '/checkins': './views/checkin.js',
+  '/api-config': './views/api-config.js',
+  '/settings': './views/settings.js',
+  '/pairing': './views/pairing.js',
+  '/onboarding': './views/onboarding.js'
 };
 
 function navigate(hash) {
@@ -121,7 +109,7 @@ function syncTabActive() {
 
 async function route() {
   const path = location.hash.replace('#', '') || '/home';
-  const mod = ROUTES[path] || home;
+  const modPath = ROUTES[path] || ROUTES['/home'];
   const root = document.getElementById('view');
   syncTabActive();
 
@@ -134,18 +122,30 @@ async function route() {
   // 视图容器样式：聊天页全屏独立滚动；二级页隐藏 Tab
   const cls = ['view'];
   if (path === '/chat') cls.push('is-chat');
-  if (path === '/pairing' || path === '/onboarding' || path === '/anniversaries' || path === '/plans' || path === '/tasks' || path === '/checkins' || path === '/movie-search' || path === '/api-config' || path === '/settings') cls.push('no-tabbar');
+  if (['/pairing', '/onboarding', '/anniversaries', '/plans', '/tasks', '/checkins', '/movie-search', '/api-config', '/settings'].includes(path)) cls.push('no-tabbar');
   root.className = cls.join(' ');
 
-  root.innerHTML = '';
+  // 先显示页内加载占位（缓慢旋转），避免空白等待
+  root.innerHTML = '<div class="page-loading"><div class="spinner"></div><span>正在加载…</span></div>';
+
+  let mod;
   try {
+    mod = await import(modPath);
+    if (typeof mod.render !== 'function') throw new Error('视图模块缺少 render 导出：' + modPath);
     await mod.render(root, ctx);
     // 视图可注册离开钩子
     if (typeof mod.cleanup === 'function') ctx.leaveHandler = mod.cleanup;
+    hideBoot(); // 首次视图渲染完成，关闭首屏遮罩
   } catch (e) {
     console.error(e);
     root.innerHTML = `<div class="placeholder"><div class="big">🌸</div><p>页面出错了：${escapeText(e.message)}</p></div>`;
   }
+}
+
+// 关闭首屏加载层（幂等）
+function hideBoot() {
+  const b = document.getElementById('boot');
+  if (b) b.classList.add('hide');
 }
 
 function escapeText(s) {
@@ -174,27 +174,29 @@ async function boot() {
   registerSW();
   window.addEventListener('hashchange', route);
 
-  let isNew = false;
-  try {
-    await initSupabase();
-    ctx.sb = sb;
-    await ensureSession();
-    const res = await getOrCreateProfile();
-    await ctx.applyProfile(res.profile);
-    isNew = res.isNew;
-  } catch (e) {
-    console.warn('启动失败（检查 Supabase 配置/匿名登录/SQL）：', e);
-    showConfigBanner();
-  }
+  // 1) 立即渲染首屏（此时 ctx 尚无 profile，视图自行渲染骨架/空态），杜绝白屏
+  await route();
 
-  // 路由：新用户先完善个人资料；否则进首页
-  if (isNew) {
-    location.hash = '/onboarding';
-  } else if (!location.hash) {
-    location.hash = '/home';
-  } else {
-    route();
-  }
+  // 2) 后台初始化云端身份（不阻塞首屏；视图首次拉数据时会自动触发 Supabase 初始化）
+  (async () => {
+    try {
+      await initSupabase();
+      ctx.sb = sb;
+      await ensureSession();
+      const res = await getOrCreateProfile();
+      await ctx.applyProfile(res.profile);
+      // 初始化完成：新用户引导资料；老用户刷新当前页以填充数据
+      if (res.isNew) {
+        location.hash = '/onboarding';
+      } else {
+        await ctx.refresh();
+        await route();
+      }
+    } catch (e) {
+      console.warn('启动失败（检查 Supabase 配置/匿名登录/SQL）：', e);
+      showConfigBanner();
+    }
+  })();
 }
 
 boot();

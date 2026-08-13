@@ -20,6 +20,13 @@
     <main id="view" class="view"></main>
     <nav class="tabbar" id="tabbar"></nav>
   </div>
+  <!-- 首屏加载层：HTML 解析即显示，避免白屏；首次视图渲染完成后由 app.js 淡出 -->
+  <div id="boot" class="boot" aria-hidden="true">
+    <div class="boot-inner">
+      <div class="spinner"></div>
+      <p class="boot-text">正在加载…</p>
+    </div>
+  </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="js/app.js"></script>
 </body>

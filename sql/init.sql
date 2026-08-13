@@ -140,7 +140,7 @@ create table if not exists messages (
 create index if not exists idx_profiles_couple_id on profiles (couple_id);
 create index if not exists idx_messages_couple_created on messages (couple_id, created_at desc);
 create index if not exists idx_diary_entries_couple_created on diary_entries (couple_id, created_at desc);
-create index if not exists idx_checkins_lookup on checkins (couple_id, type, who, date);
+create index if not exists idx_checkins_lookup on checkins (couple_id, type, owner_id, date);
 create index if not exists idx_diary_photos_entry on diary_photos (entry_id);
 create index if not exists idx_anniversaries_couple_date on anniversaries (couple_id, date);
 create index if not exists idx_plans_status on plans (couple_id, status);

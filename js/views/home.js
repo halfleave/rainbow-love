@@ -72,6 +72,7 @@ export async function render(root, ctx) {
 
   // 并发拉取首页数据（个人模式 / 配对模式 通用：除聊天外功能都以自己的数据为中心）
   let ann = [], tasks = [], checks = [], diary = [], photos = [];
+  let loadErr = '';
   try {
     [ann, tasks, checks, diary, photos] = await Promise.all([
       loadAnniversaries(ctx.coupleId),
@@ -81,6 +82,7 @@ export async function render(root, ctx) {
       loadRecentPhotos(ctx.coupleId, 6)
     ]);
   } catch (e) {
+    loadErr = e?.message || String(e);
     console.warn('首页数据拉取失败', e);
   }
 
@@ -90,6 +92,7 @@ export async function render(root, ctx) {
   checks.forEach((c) => { checkedMap[c.type] = c; });
 
   root.querySelector('#home-loader').outerHTML = `
+    ${loadErr ? `<div class="card" style="border:1px solid var(--danger); color:var(--danger)"><div class="section-title">数据加载失败</div><p class="tip">${escapeHtml(loadErr)}</p></div>` : ''}
     <!-- 纪念日倒计时 -->
     <div class="card ann-card" id="annCard">
       <div class="ann-left">
@@ -140,12 +143,6 @@ export async function render(root, ctx) {
       <button class="btn ghost block" id="goMemory" style="margin-top:10px">进入记忆</button>
     </div>
 
-    ${!pair ? `
-    <div class="card invite-nudge">
-      <div class="section-title">邀请 TA 💞</div>
-      <p class="tip">生成邀请码或输入 TA 的邀请码，即可把回忆共享给彼此。现在你看到的是自己的空间。</p>
-      <button class="btn primary block" id="goPair">去配对</button>
-    </div>` : ''}
   `;
 
   root.querySelector('#changeWord')?.addEventListener('click', () => {

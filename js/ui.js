@@ -60,12 +60,17 @@ export function confirmDialog(title, text) {
 
 // 二级页面顶部导航（返回按钮 + 标题）
 export function pageHeader(title, opts = {}) {
-  const right = opts.right ? `<button class="action" id="header-action">${escapeHtml(opts.right)}</button>` : '';
+  const back = opts.hideBack
+    ? '<span class="back-spacer"></span>'
+    : `<button class="back" id="header-back" aria-label="返回">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>`;
+  const right = opts.right
+    ? `<button class="action" id="header-action">${escapeHtml(opts.right)}</button>`
+    : '<span class="action-spacer"></span>';
   return `
     <header class="page-header" id="page-header">
-      <button class="back" id="header-back" aria-label="返回">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-      </button>
+      ${back}
       <div class="title">${escapeHtml(title)}</div>
       ${right}
     </header>`;

@@ -128,6 +128,22 @@ export async function joinCouple(code) {
   return data; // { ok:true, couple_id } | { ok:false, error }
 }
 
+// 双向确认配对：发起/确认（双方都填对方码才成功，先填方保留空间）
+export async function requestPair(code) {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.rpc('request_pair', { p_code: String(code || '').toUpperCase() });
+  if (error) throw error;
+  return data; // { ok:true, paired:true, couple_id } | { ok:true, pending:true } | { ok:false, error }
+}
+
+// 查询自己是否处于"等待对方确认"态（已进入配对页时判断初始状态）
+export async function getMyIntent() {
+  if (!sb) await initSupabase();
+  const { data, error } = await sb.rpc('my_pair_intent');
+  if (error) throw error;
+  return data || { pending: false }; // { pending:true, to_code } | { pending:false }
+}
+
 // 取当前用户邀请码（RPC 方式，更稳）
 export async function getInviteCode() {
   const { data, error } = await sb.rpc('get_my_invite_code');
@@ -323,7 +339,7 @@ export async function deletePlan(id) {
 export async function loadTodayTasks(coupleId) {
   if (!sb) await initSupabase();
   const { data, error } = await sb.from('tasks')
-    .select('*, assignee:profiles!tasks_assignee_id_fkey(nickname, color)')
+    .select('*, assignee:profiles(nickname, color)')
     .eq('couple_id', coupleId).eq('is_deleted', false);
   if (error) throw error;
   return (data || []).filter((t) => t.status !== 'done');
@@ -354,7 +370,7 @@ export async function loadRecentDiary(coupleId, limit = 5) {
 export async function loadRecentPhotos(coupleId, limit = 6) {
   if (!sb) await initSupabase();
   const { data, error } = await sb.from('diary_photos')
-    .select('*, entry:diary_entries!diary_photos_entry_id_fkey(couple_id, is_deleted)')
+    .select('*, entry:diary_entries(couple_id, is_deleted)')
     .order('created_at', { ascending: false }).limit(limit * 4);
   if (error) throw error;
   return (data || [])

@@ -1,5 +1,5 @@
 // 我的（第3步基础：身份卡 + 配对入口 + 外观主题；其余模块第8/9/10步）
-import { toast, escapeHtml } from '../ui.js';
+import { toast, escapeHtml, pageHeader } from '../ui.js';
 
 export async function render(root, ctx) {
   const me = ctx.me || {};
@@ -7,10 +7,7 @@ export async function render(root, ctx) {
   const partner = ctx.partner || {};
 
   root.innerHTML = `
-    <div class="page-head fade-in">
-      <h1 class="page-title">我的</h1>
-      <p class="page-sub">身份 · 生活 · 共娱 · 设置</p>
-    </div>
+    ${pageHeader('我的', { right: paired ? '' : '和TA牵手', hideBack: true })}
 
     <div class="card identity">
       <div class="avatar" style="background:${escapeHtml(me.color || '#E86A92')}">${(escapeHtml(me.nickname || '我'))[0] || '我'}</div>
@@ -88,6 +85,7 @@ export async function render(root, ctx) {
   root.querySelector('#edit')?.addEventListener('click', () => ctx.navigate('/onboarding'));
   root.querySelector('#goPair')?.addEventListener('click', () => ctx.navigate('/pairing'));
   root.querySelector('#manage')?.addEventListener('click', () => ctx.navigate('/pairing'));
+  root.querySelector('#header-action')?.addEventListener('click', () => ctx.navigate('/pairing'));
   root.querySelector('#goAnn')?.addEventListener('click', () => ctx.navigate('/anniversaries'));
   root.querySelector('#goPlan')?.addEventListener('click', () => ctx.navigate('/plans'));
   root.querySelector('#goTask')?.addEventListener('click', () => ctx.navigate('/tasks'));
