@@ -1,0 +1,6 @@
+# 本地数据/缓存，不入库
+.workbuddy/
+__pycache__/
+*.pyc
+*.log
+LOVE_dev_backup_*/
